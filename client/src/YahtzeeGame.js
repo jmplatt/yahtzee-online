@@ -9,16 +9,22 @@ export default function YahtzeeGame() {
   const [joined, setJoined] = useState(false);
   const [gameState, setGameState] = useState(null);
   const [dice, setDice] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [hoverScore, setHoverScore] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+
+  const numbers = ["aces","twos","threes","fours","fives","sixes"];
+  const specials = ["threeKind","fourKind","fullHouse","shortStraight","longStraight","yahtzee","chance"];
 
   useEffect(() => {
     socket.on("game-updated", (state) => {
       setGameState(state);
       setDice(state.dice);
-      setSelectedCategory(""); // reset selection on update
+      setSelectedCategory(null); // reset selection after update
     });
 
-    return () => socket.off("game-updated");
+    return () => {
+      socket.off("game-updated");
+    };
   }, []);
 
   const handleCreate = () => {
@@ -36,7 +42,9 @@ export default function YahtzeeGame() {
       if (res.ok) {
         setGameState(res.state);
         setJoined(true);
-      } else alert(res.error);
+      } else {
+        alert(res.error);
+      }
     });
   };
 
@@ -47,27 +55,36 @@ export default function YahtzeeGame() {
   };
 
   const handleHold = (index) => {
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    if (currentPlayer.socketId !== socket.id) return;
+    if (!isMyTurn) return;
     socket.emit("toggle-hold", { gameId, index });
   };
 
-  const submitScore = () => {
+  const handleSubmitScore = () => {
     if (!selectedCategory) return;
     socket.emit("choose-score", { gameId, category: selectedCategory }, (res) => {
       if (!res.ok) alert(res.error || "Score failed");
-      setSelectedCategory(""); // reset after submission
+      setSelectedCategory(null);
     });
   };
 
   if (!joined) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
-        <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-        <button onClick={handleCreate} style={{ marginLeft: "10px" }}>Create Game</button>
+        <input
+          placeholder="Your name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={{ marginRight: "1rem" }}
+        />
+        <button onClick={handleCreate}>Create Game</button>
         <br /><br />
-        <input placeholder="Game ID" value={gameId} onChange={(e) => setGameId(e.target.value)} />
-        <button onClick={handleJoin} style={{ marginLeft: "10px" }}>Join Game</button>
+        <input
+          placeholder="Game ID"
+          value={gameId}
+          onChange={(e) => setGameId(e.target.value)}
+          style={{ marginRight: "1rem" }}
+        />
+        <button onClick={handleJoin}>Join Game</button>
       </div>
     );
   }
@@ -76,130 +93,141 @@ export default function YahtzeeGame() {
   const me = gameState?.players.find((p) => p.socketId === socket.id);
   const isMyTurn = currentPlayer?.socketId === socket.id;
 
-  // Labels for columns
-  const numbers = [
-    { key: "aces", label: "One" },
-    { key: "twos", label: "Two" },
-    { key: "threes", label: "Three" },
-    { key: "fours", label: "Four" },
-    { key: "fives", label: "Five" },
-    { key: "sixes", label: "Six" },
-  ];
+  const computeHoverScore = (category) => {
+    if (!dice) return 0;
+    // replicate your scoring logic
+    const counts = Array(7).fill(0);
+    dice.forEach(d => counts[d]++);
+    const total = dice.reduce((a,b)=>a+b,0);
 
-  const specials = [
-    { key: "threeKind", label: "X3" },
-    { key: "fourKind", label: "X4" },
-    { key: "fullHouse", label: "House" },
-    { key: "shortStraight", label: "S" },
-    { key: "longStraight", label: "L" },
-    { key: "yahtzee", label: "Y" },
-    { key: "chance", label: "?" },
-  ];
-
-  const renderCategoryButton = (cat) => {
-    const scored = me?.scores?.[cat.key] !== undefined;
-    const selected = selectedCategory === cat.key;
-    return (
-      <div
-        key={cat.key}
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          padding: "6px 10px",
-          margin: "4px 0",
-          borderRadius: "6px",
-          backgroundColor: scored ? "#d1ffd6" : selected ? "#ffe680" : "#fff",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-          cursor: !scored && isMyTurn ? "pointer" : "default",
-          transition: "background-color 0.2s",
-        }}
-        onClick={() => !scored && isMyTurn && setSelectedCategory(cat.key)}
-      >
-        <span>{cat.label}</span>
-        <span>{me?.scores?.[cat.key] ?? "-"}</span>
-      </div>
-    );
+    switch(category){
+      case 'aces': return counts[1];
+      case 'twos': return counts[2]*2;
+      case 'threes': return counts[3]*3;
+      case 'fours': return counts[4]*4;
+      case 'fives': return counts[5]*5;
+      case 'sixes': return counts[6]*6;
+      case 'threeKind': return Object.values(counts).some(c=>c>=3)?total:0;
+      case 'fourKind': return Object.values(counts).some(c=>c>=4)?total:0;
+      case 'fullHouse': return (Object.values(counts).some(c=>c===3) && Object.values(counts).some(c=>c===2))?25:0;
+      case 'shortStraight': {
+        const set = new Set(dice);
+        const seqs = [[1,2,3,4],[2,3,4,5],[3,4,5,6]];
+        return seqs.some(seq=>seq.every(n=>set.has(n)))?30:0;
+      }
+      case 'longStraight': {
+        const set = new Set(dice);
+        return ([1,2,3,4,5].every(n=>set.has(n)) || [2,3,4,5,6].every(n=>set.has(n)))?40:0;
+      }
+      case 'yahtzee': return Object.values(counts).some(c=>c===5)?50:0;
+      case 'chance': return total;
+      default: return 0;
+    }
   };
 
+  const renderCategoryButton = (cat) => (
+    <div
+      key={cat}
+      style={{
+        padding: "8px",
+        margin: "5px 0",
+        cursor: isMyTurn && me?.scores?.[cat] === undefined ? "pointer" : "not-allowed",
+        backgroundColor: selectedCategory===cat ? "#ffeb99" : "#ffffff",
+        borderRadius: "5px",
+        border: "1px solid #333",
+        position: "relative"
+      }}
+      onClick={() => isMyTurn && me?.scores?.[cat] === undefined && setSelectedCategory(cat)}
+      onMouseEnter={() => setHoverScore(computeHoverScore(cat))}
+      onMouseLeave={() => setHoverScore(null)}
+    >
+      {cat} {hoverScore && selectedCategory !== cat && me?.scores?.[cat]===undefined ? `(${computeHoverScore(cat)})` : ""}
+    </div>
+  );
+
   return (
-    <div style={{ padding: "2rem", minHeight: "100vh", backgroundColor: "#fefefe", fontFamily: "Arial, sans-serif" }}>
-      <h2 style={{ textAlign: "center", color: "#333" }}>Yahtzee Game: {gameId}</h2>
-      <p style={{ textAlign: "center", color: "#555" }}>Status: <strong>{gameState.status}</strong></p>
-      {gameState.status !== "finished" && (
-        <p style={{ textAlign: "center" }}>Current Turn: <strong>{currentPlayer?.name}</strong></p>
+    <div style={{ padding: "2rem", minHeight: "100vh", backgroundColor: "#D1FFBD" }}>
+      <h2>Game: {gameId}</h2>
+
+      {gameState && (
+        <>
+          <p>Status: {gameState.status}</p>
+          {gameState.status !== "finished" && (
+            <p>Current Turn: <strong>{currentPlayer?.name}</strong></p>
+          )}
+          {gameState.status === "finished" && (
+            <div style={{ fontSize: "1.5rem", color: "green", marginBottom: "1rem" }}>
+              🎉 Game Over! Winner:{" "}
+              {gameState.winners.length > 1
+                ? gameState.winners.join(" & ") + " (tie!)"
+                : gameState.winners[0]}
+            </div>
+          )}
+
+          <div style={{ fontSize: "2rem", margin: "20px 0" }}>
+            {dice.map((d, i) => (
+              <span
+                key={i}
+                style={{
+                  display: "inline-block",
+                  margin: "0 10px",
+                  width: "50px",
+                  height: "50px",
+                  lineHeight: "50px",
+                  textAlign: "center",
+                  fontSize: "1.5rem",
+                  backgroundColor: gameState.holds[i] ? "#90D5FF" : "#fff",
+                  borderRadius: "10px",
+                  border: "2px solid #333",
+                  cursor: isMyTurn ? "pointer" : "default",
+                  transition: "all 0.3s",
+                  transform: "rotate(0deg)",
+                }}
+                onClick={() => handleHold(i)}
+              >
+                🎲 {d}
+              </span>
+            ))}
+          </div>
+
+          <button onClick={handleRoll} disabled={!isMyTurn || gameState.rollsLeft <= 0}>
+            Roll Dice ({gameState.rollsLeft} left)
+          </button>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: "2rem", marginTop: "2rem" }}>
+            {/* Numbers Column */}
+            <div style={{ backgroundColor: "#90D5FF", padding: "1rem", borderRadius: "10px", minWidth: "140px" }}>
+              <h3 style={{ textAlign: "center" }}>Numbers</h3>
+              {numbers.map(renderCategoryButton)}
+            </div>
+            {/* Specials Column */}
+            <div style={{ backgroundColor: "#D1FFBD", padding: "1rem", borderRadius: "10px", minWidth: "160px" }}>
+              <h3 style={{ textAlign: "center" }}>Specials</h3>
+              {specials.map(renderCategoryButton)}
+            </div>
+          </div>
+
+          <div style={{ marginTop: "1rem", textAlign: "center" }}>
+            <button
+              onClick={handleSubmitScore}
+              disabled={!selectedCategory}
+              style={{ padding: "10px 20px", marginTop: "1rem", fontSize: "1rem", cursor: "pointer" }}
+            >
+              Submit Score
+            </button>
+          </div>
+
+          <h3>Score Tally</h3>
+          <div style={{ display: "flex", justifyContent: "center", gap: "2rem", flexWrap: "wrap" }}>
+            {gameState.players.map(p => (
+              <div key={p.socketId} style={{ padding: "1rem", border: "2px solid #333", borderRadius: "10px", minWidth: "120px", backgroundColor: "#ffffff" }}>
+                <h4>{p.name}</h4>
+                <p>Total Score: {p.total}</p>
+              </div>
+            ))}
+          </div>
+        </>
       )}
-
-      {/* Dice */}
-      <div style={{ fontSize: "2rem", textAlign: "center", margin: "1rem 0" }}>
-        {dice.map((d, i) => (
-          <span
-            key={i}
-            style={{
-              margin: "0 10px",
-              cursor: isMyTurn ? "pointer" : "default",
-              opacity: gameState.holds[i] ? 0.5 : 1,
-              display: "inline-block",
-              padding: "10px",
-              border: "2px solid #ddd",
-              borderRadius: "8px",
-              backgroundColor: "#f0f0f0",
-            }}
-            onClick={() => handleHold(i)}
-          >
-            🎲 {d}
-          </span>
-        ))}
-      </div>
-
-      <div style={{ textAlign: "center", marginBottom: "1rem" }}>
-        <button
-          onClick={handleRoll}
-          disabled={!isMyTurn || gameState.rollsLeft <= 0}
-          style={{
-            padding: "10px 20px",
-            fontSize: "1rem",
-            borderRadius: "8px",
-            border: "none",
-            backgroundColor: isMyTurn ? "#4CAF50" : "#ccc",
-            color: "#fff",
-            cursor: isMyTurn ? "pointer" : "not-allowed",
-          }}
-        >
-          Roll Dice ({gameState.rollsLeft} left)
-        </button>
-      </div>
-
-      {/* Two-column Scoreboard */}
-      <div style={{ display: "flex", justifyContent: "center", gap: "3rem", marginTop: "2rem" }}>
-        <div style={{ backgroundColor: "#f0f8ff", padding: "1rem", borderRadius: "10px", minWidth: "140px" }}>
-          <h3 style={{ textAlign: "center", color: "#333" }}>Numbers</h3>
-          {numbers.map(renderCategoryButton)}
-        </div>
-
-        <div style={{ backgroundColor: "#fff0f5", padding: "1rem", borderRadius: "10px", minWidth: "160px" }}>
-          <h3 style={{ textAlign: "center", color: "#333" }}>Specials</h3>
-          {specials.map(renderCategoryButton)}
-        </div>
-      </div>
-
-      {/* Submit button */}
-      <div style={{ textAlign: "center", marginTop: "1rem" }}>
-        <button
-          onClick={submitScore}
-          disabled={!selectedCategory}
-          style={{
-            padding: "10px 20px",
-            fontSize: "1rem",
-            borderRadius: "8px",
-            border: "none",
-            backgroundColor: selectedCategory ? "#007bff" : "#ccc",
-            color: "#fff",
-            cursor: selectedCategory ? "pointer" : "not-allowed",
-          }}
-        >
-          Submit Choice
-        </button>
-      </div>
     </div>
   );
 }
