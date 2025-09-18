@@ -73,8 +73,9 @@ const handleRoll = () => {
   setRolling(true);
 
   const animation = setInterval(() => {
-    // ORIGINAL: use current dice state to animate only dice not held
-    setDice(dice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1)));
+    setDice(prevDice =>
+      prevDice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1))
+    );
   }, 100);
 
   setTimeout(() => {
@@ -86,14 +87,18 @@ const handleRoll = () => {
     socket.emit("roll-dice", { gameId }, (res) => {
       if (!res.ok) alert(res.error || "Roll failed");
     });
+
+    setRolling(false);
   }, 1000);
 };
-  
-  const handleHold = (index) => {
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    if (currentPlayer?.socketId !== socket.id) return;
-    socket.emit("toggle-hold", { gameId, index });
-  };
+
+const handleHold = (index) => {
+  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+  if (currentPlayer?.socketId !== socket.id) return;
+
+  // toggle hold for only this die
+  socket.emit("toggle-hold", { gameId, index });
+};
 
   const handleSubmitScore = () => {
     if (!selectedCategory) return;
