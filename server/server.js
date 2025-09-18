@@ -4,11 +4,22 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 
-const PORT = process.env.PORT || 3001;
+const app = express();
+const httpServer = createServer(app);
+
+const io = new Server(httpServer);
+
+io.on('connection', (socket) => {
+  console.log('a user connected');
+  // your socket handlers here
+});
+
+const PORT = process.env.PORT || 5000;
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 function makeId(len = 6) {
   return Math.random().toString(36).substr(2, len).toUpperCase();
