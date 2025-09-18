@@ -1,29 +1,47 @@
 // server/server.js
-const path = require("path");
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 
+// Needed for __dirname in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Create Express app and HTTP server
 const app = express();
 const httpServer = createServer(app);
 
+// Attach Socket.IO
 const io = new Server(httpServer);
 
 io.on('connection', (socket) => {
-  console.log('a user connected');
-  // your socket handlers here
+  console.log('A user connected');
+
+  // Example socket handler
+  socket.on('disconnect', () => {
+    console.log('A user disconnected');
+  });
 });
 
+// Serve React build
+app.use(express.static(path.join(__dirname, '../client/build')));
+
+// Catch-all route to serve React for any other path
+app.get(/.*/, (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
+});
+
+// Start server
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
+// Utility function
 function makeId(len = 6) {
   return Math.random().toString(36).substr(2, len).toUpperCase();
 }
+
 
 const GAMES = new Map();
 const CATEGORIES = [
