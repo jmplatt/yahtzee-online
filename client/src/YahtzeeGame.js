@@ -9,11 +9,13 @@ export default function YahtzeeGame() {
   const [joined, setJoined] = useState(false);
   const [gameState, setGameState] = useState(null);
   const [dice, setDice] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
 
   useEffect(() => {
     socket.on("game-updated", (state) => {
       setGameState(state);
       setDice(state.dice);
+      setSelectedCategory(""); // reset selection on update
     });
 
     return () => socket.off("game-updated");
@@ -50,9 +52,11 @@ export default function YahtzeeGame() {
     socket.emit("toggle-hold", { gameId, index });
   };
 
-  const handleScore = (category) => {
-    socket.emit("choose-score", { gameId, category }, (res) => {
+  const submitScore = () => {
+    if (!selectedCategory) return;
+    socket.emit("choose-score", { gameId, category: selectedCategory }, (res) => {
       if (!res.ok) alert(res.error || "Score failed");
+      setSelectedCategory(""); // reset after submission
     });
   };
 
@@ -72,8 +76,50 @@ export default function YahtzeeGame() {
   const me = gameState?.players.find((p) => p.socketId === socket.id);
   const isMyTurn = currentPlayer?.socketId === socket.id;
 
-  const numbers = ["aces", "twos", "threes", "fours", "fives", "sixes"];
-  const specials = ["threeKind","fourKind","fullHouse","shortStraight","longStraight","yahtzee","chance"];
+  // Labels for columns
+  const numbers = [
+    { key: "aces", label: "One" },
+    { key: "twos", label: "Two" },
+    { key: "threes", label: "Three" },
+    { key: "fours", label: "Four" },
+    { key: "fives", label: "Five" },
+    { key: "sixes", label: "Six" },
+  ];
+
+  const specials = [
+    { key: "threeKind", label: "X3" },
+    { key: "fourKind", label: "X4" },
+    { key: "fullHouse", label: "House" },
+    { key: "shortStraight", label: "S" },
+    { key: "longStraight", label: "L" },
+    { key: "yahtzee", label: "Y" },
+    { key: "chance", label: "?" },
+  ];
+
+  const renderCategoryButton = (cat) => {
+    const scored = me?.scores?.[cat.key] !== undefined;
+    const selected = selectedCategory === cat.key;
+    return (
+      <div
+        key={cat.key}
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          padding: "6px 10px",
+          margin: "4px 0",
+          borderRadius: "6px",
+          backgroundColor: scored ? "#d1ffd6" : selected ? "#ffe680" : "#fff",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+          cursor: !scored && isMyTurn ? "pointer" : "default",
+          transition: "background-color 0.2s",
+        }}
+        onClick={() => !scored && isMyTurn && setSelectedCategory(cat.key)}
+      >
+        <span>{cat.label}</span>
+        <span>{me?.scores?.[cat.key] ?? "-"}</span>
+      </div>
+    );
+  };
 
   return (
     <div style={{ padding: "2rem", minHeight: "100vh", backgroundColor: "#fefefe", fontFamily: "Arial, sans-serif" }}>
@@ -81,14 +127,6 @@ export default function YahtzeeGame() {
       <p style={{ textAlign: "center", color: "#555" }}>Status: <strong>{gameState.status}</strong></p>
       {gameState.status !== "finished" && (
         <p style={{ textAlign: "center" }}>Current Turn: <strong>{currentPlayer?.name}</strong></p>
-      )}
-      {gameState.status === "finished" && (
-        <div style={{ fontSize: "1.5rem", color: "green", textAlign: "center", margin: "1rem 0" }}>
-          🎉 Game Over! Winner:{" "}
-          {gameState.winners.length > 1
-            ? gameState.winners.join(" & ") + " (tie!)"
-            : gameState.winners[0]}
-        </div>
       )}
 
       {/* Dice */}
@@ -100,7 +138,6 @@ export default function YahtzeeGame() {
               margin: "0 10px",
               cursor: isMyTurn ? "pointer" : "default",
               opacity: gameState.holds[i] ? 0.5 : 1,
-              transition: "transform 0.2s",
               display: "inline-block",
               padding: "10px",
               border: "2px solid #ddd",
@@ -126,7 +163,6 @@ export default function YahtzeeGame() {
             backgroundColor: isMyTurn ? "#4CAF50" : "#ccc",
             color: "#fff",
             cursor: isMyTurn ? "pointer" : "not-allowed",
-            transition: "background-color 0.3s"
           }}
         >
           Roll Dice ({gameState.rollsLeft} left)
@@ -135,55 +171,34 @@ export default function YahtzeeGame() {
 
       {/* Two-column Scoreboard */}
       <div style={{ display: "flex", justifyContent: "center", gap: "3rem", marginTop: "2rem" }}>
-        {/* Column 1 */}
         <div style={{ backgroundColor: "#f0f8ff", padding: "1rem", borderRadius: "10px", minWidth: "140px" }}>
           <h3 style={{ textAlign: "center", color: "#333" }}>Numbers</h3>
-          {numbers.map((cat) => (
-            <div
-              key={cat}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "6px 10px",
-                margin: "4px 0",
-                borderRadius: "6px",
-                backgroundColor: me?.scores?.[cat] !== undefined ? "#d1ffd6" : "#fff",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                cursor: me?.scores?.[cat] === undefined && isMyTurn ? "pointer" : "default",
-                transition: "background-color 0.2s",
-              }}
-              onClick={() => isMyTurn && handleScore(cat)}
-            >
-              <span>{cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
-              <span>{me?.scores?.[cat] ?? "-"}</span>
-            </div>
-          ))}
+          {numbers.map(renderCategoryButton)}
         </div>
 
-        {/* Column 2 */}
         <div style={{ backgroundColor: "#fff0f5", padding: "1rem", borderRadius: "10px", minWidth: "160px" }}>
           <h3 style={{ textAlign: "center", color: "#333" }}>Specials</h3>
-          {specials.map((cat) => (
-            <div
-              key={cat}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "6px 10px",
-                margin: "4px 0",
-                borderRadius: "6px",
-                backgroundColor: me?.scores?.[cat] !== undefined ? "#d1ffd6" : "#fff",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-                cursor: me?.scores?.[cat] === undefined && isMyTurn ? "pointer" : "default",
-                transition: "background-color 0.2s",
-              }}
-              onClick={() => isMyTurn && handleScore(cat)}
-            >
-              <span>{cat}</span>
-              <span>{me?.scores?.[cat] ?? "-"}</span>
-            </div>
-          ))}
+          {specials.map(renderCategoryButton)}
         </div>
+      </div>
+
+      {/* Submit button */}
+      <div style={{ textAlign: "center", marginTop: "1rem" }}>
+        <button
+          onClick={submitScore}
+          disabled={!selectedCategory}
+          style={{
+            padding: "10px 20px",
+            fontSize: "1rem",
+            borderRadius: "8px",
+            border: "none",
+            backgroundColor: selectedCategory ? "#007bff" : "#ccc",
+            color: "#fff",
+            cursor: selectedCategory ? "pointer" : "not-allowed",
+          }}
+        >
+          Submit Choice
+        </button>
       </div>
     </div>
   );
