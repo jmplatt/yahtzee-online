@@ -202,19 +202,40 @@ export default function YahtzeeGame() {
       <div style={{ display:"flex", justifyContent:"center", gap:"20px", marginTop:"2rem" }}>
         <div style={columnStyle}>
           <h3 style={{ textAlign:"center" }}>Category</h3>
-          {CATEGORIES.map(cat=>(
-            <div key={cat} style={{ display:"flex", justifyContent:"space-between", marginBottom:"6px", alignItems:"center" }}>
-              <span>{numberLabels[cat] ?? specialLabels[cat]}</span>
-              <div style={{ display:"flex", gap:"5px" }}>
-                {gameState.players.map(p=>(
-                  <span key={p.socketId} style={scoreBoxStyle} title={p.name}>
-                    {p.scores?.[cat] ?? (hoverCategory===cat ? computeScore(dice,cat) : "-")}
-                  </span>
-                ))}
-              </div>
-              <button onClick={()=>setSelectedCategory(cat)}
-                disabled={!isMyTurn || me?.scores?.[cat]!==undefined}>Select</button>
-            </div>
+          {CATEGORIES.map(cat => (
+  <div 
+    key={cat} 
+    style={{ display:"flex", justifyContent:"space-between", marginBottom:"6px", alignItems:"center" }}
+  >
+    <span>{numberLabels[cat] ?? specialLabels[cat]}</span>
+    <div style={{ display:"flex", gap:"5px" }}>
+      {gameState.players.map(p => {
+        const isHover = hoverCategory === cat;
+        return (
+          <span
+            key={p.socketId}
+            style={{
+              ...scoreBoxStyle,
+              backgroundColor: isHover ? "#FFF59D" : "#D1FFBD", // yellow highlight on hover
+              fontWeight: isHover ? "bold" : "normal",
+              transition: "all 0.2s"
+            }}
+            title={p.name}
+            onMouseEnter={() => setHoverCategory(cat)}
+            onMouseLeave={() => setHoverCategory(null)}
+          >
+            {p.scores?.[cat] ?? (isHover ? computeScore(dice, cat) : "-")}
+          </span>
+        );
+      })}
+    </div>
+    <button 
+      onClick={() => setSelectedCategory(cat)}
+      disabled={!isMyTurn || me?.scores?.[cat] !== undefined}
+    >
+      Select
+    </button>
+  </div>
           ))}
         </div>
       </div>
