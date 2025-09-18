@@ -143,19 +143,22 @@ export default function YahtzeeGame() {
   const me = gameState?.players.find(p=>p.socketId===socket.id);
   const isMyTurn = currentPlayer?.socketId === socket.id;
 
-  const diceStyle = (d,i) => ({
-    width:"50px",
-    height:"50px",
-    lineHeight:"50px",
-    margin:"0 5px",
-    fontSize:"1.5rem",
-    backgroundColor:gameState.holds[i]?"#D1FFBD":"#90D5FF",
-    borderRadius:"8px",
-    display:"inline-block",
-    cursor:isMyTurn?"pointer":"default",
-    transition:"all 0.2s",
-    userSelect:"none"
-  });
+const diceStyle = (d, i) => ({
+  width: "50px",
+  height: "50px",
+  lineHeight: "50px",
+  margin: "0 5px",
+  fontSize: "1.5rem",
+  backgroundColor: gameState.holds[i] ? "#4287f5" : "transparent", // blue if held, transparent otherwise
+  border: "2px solid black", // always a black border
+  borderRadius: "8px",
+  display: "inline-block",
+  cursor: isMyTurn ? "pointer" : "default",
+  transition: "all 0.2s",
+  userSelect: "none",
+  textAlign: "center"
+});
+
 
   return (
     <div style={{ padding:"2rem", minHeight:"100vh", backgroundColor:"#D1FFBD" }}>
