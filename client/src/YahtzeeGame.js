@@ -68,37 +68,36 @@ export default function YahtzeeGame() {
     });
   };
 
-const handleRoll = () => {
-  if (!gameState) return;
-  setRolling(true);
+  const handleRoll = () => {
+    if (!gameState) return;
+    setRolling(true);
 
-  const animation = setInterval(() => {
-    setDice(prevDice =>
-      prevDice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1))
-    );
-  }, 100);
+    const animation = setInterval(() => {
+      setDice(prevDice =>
+        prevDice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1))
+      );
+    }, 100);
 
-  setTimeout(() => {
-    clearInterval(animation);
+    setTimeout(() => {
+      clearInterval(animation);
 
-    // safely reduce rolls left by 1
-    setGameState(prev => ({ ...prev, rollsLeft: prev.rollsLeft - 1 }));
+      // Reduce rolls left by 1 safely
+      setGameState(prev => ({ ...prev, rollsLeft: prev.rollsLeft - 1 }));
 
-    socket.emit("roll-dice", { gameId }, (res) => {
-      if (!res.ok) alert(res.error || "Roll failed");
-    });
+      socket.emit("roll-dice", { gameId }, (res) => {
+        if (!res.ok) alert(res.error || "Roll failed");
+      });
 
-    setRolling(false);
-  }, 1000);
-};
+      setRolling(false);
+    }, 1000);
+  };
 
-const handleHold = (index) => {
-  const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-  if (currentPlayer?.socketId !== socket.id) return;
+  const handleHold = (index) => {
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer?.socketId !== socket.id) return;
 
-  // toggle hold for only this die
-  socket.emit("toggle-hold", { gameId, index });
-};
+    socket.emit("toggle-hold", { gameId, index });
+  };
 
   const handleSubmitScore = () => {
     if (!selectedCategory) return;
@@ -215,39 +214,39 @@ const handleHold = (index) => {
         <div style={columnStyle}>
           <h3 style={{ textAlign:"center" }}>Category</h3>
           {CATEGORIES.map(cat => (
-  <div 
-    key={cat} 
-    style={{ display:"flex", justifyContent:"space-between", marginBottom:"6px", alignItems:"center" }}
-  >
-    <span>{numberLabels[cat] ?? specialLabels[cat]}</span>
-    <div style={{ display:"flex", gap:"5px" }}>
-      {gameState.players.map(p => {
-        const isHover = hoverCategory === cat;
-        return (
-          <span
-            key={p.socketId}
-            style={{
-              ...scoreBoxStyle,
-              backgroundColor: isHover ? "#FFF59D" : "#D1FFBD", // yellow highlight on hover
-              fontWeight: isHover ? "bold" : "normal",
-              transition: "all 0.2s"
-            }}
-            title={p.name}
-            onMouseEnter={() => setHoverCategory(cat)}
-            onMouseLeave={() => setHoverCategory(null)}
-          >
-            {p.scores?.[cat] ?? (isHover ? computeScore(dice, cat) : "-")}
-          </span>
-        );
-      })}
-    </div>
-    <button 
-      onClick={() => setSelectedCategory(cat)}
-      disabled={!isMyTurn || me?.scores?.[cat] !== undefined}
-    >
-      Select
-    </button>
-  </div>
+            <div 
+              key={cat} 
+              style={{ display:"flex", justifyContent:"space-between", marginBottom:"6px", alignItems:"center" }}
+            >
+              <span>{numberLabels[cat] ?? specialLabels[cat]}</span>
+              <div style={{ display:"flex", gap:"5px" }}>
+                {gameState.players.map(p => {
+                  const isHover = hoverCategory === cat;
+                  return (
+                    <span
+                      key={p.socketId}
+                      style={{
+                        ...scoreBoxStyle,
+                        backgroundColor: isHover ? "#FFF59D" : "#D1FFBD",
+                        fontWeight: isHover ? "bold" : "normal",
+                        transition: "all 0.2s"
+                      }}
+                      title={p.name}
+                      onMouseEnter={() => setHoverCategory(cat)}
+                      onMouseLeave={() => setHoverCategory(null)}
+                    >
+                      {p.scores?.[cat] ?? (isHover ? computeScore(dice, cat) : "-")}
+                    </span>
+                  );
+                })}
+              </div>
+              <button 
+                onClick={() => setSelectedCategory(cat)}
+                disabled={!isMyTurn || me?.scores?.[cat] !== undefined}
+              >
+                Select
+              </button>
+            </div>
           ))}
         </div>
       </div>
