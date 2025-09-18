@@ -16,9 +16,7 @@ export default function YahtzeeGame() {
       setDice(state.dice);
     });
 
-    return () => {
-      socket.off("game-updated");
-    };
+    return () => socket.off("game-updated");
   }, []);
 
   const handleCreate = () => {
@@ -36,9 +34,7 @@ export default function YahtzeeGame() {
       if (res.ok) {
         setGameState(res.state);
         setJoined(true);
-      } else {
-        alert(res.error);
-      }
+      } else alert(res.error);
     });
   };
 
@@ -49,7 +45,8 @@ export default function YahtzeeGame() {
   };
 
   const handleHold = (index) => {
-    if (gameState.players[gameState.currentPlayerIndex]?.socketId !== socket.id) return;
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer.socketId !== socket.id) return;
     socket.emit("toggle-hold", { gameId, index });
   };
 
@@ -61,20 +58,12 @@ export default function YahtzeeGame() {
 
   if (!joined) {
     return (
-      <div style={{ padding: "2rem" }}>
-        <input
-          placeholder="Your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <button onClick={handleCreate}>Create Game</button>
-        <br />
-        <input
-          placeholder="Game ID"
-          value={gameId}
-          onChange={(e) => setGameId(e.target.value)}
-        />
-        <button onClick={handleJoin}>Join Game</button>
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+        <button onClick={handleCreate} style={{ marginLeft: "10px" }}>Create Game</button>
+        <br /><br />
+        <input placeholder="Game ID" value={gameId} onChange={(e) => setGameId(e.target.value)} />
+        <button onClick={handleJoin} style={{ marginLeft: "10px" }}>Join Game</button>
       </div>
     );
   }
@@ -83,120 +72,119 @@ export default function YahtzeeGame() {
   const me = gameState?.players.find((p) => p.socketId === socket.id);
   const isMyTurn = currentPlayer?.socketId === socket.id;
 
-  // Dynamic background based on turn
-  const backgroundColor = currentPlayer
-    ? currentPlayer === gameState.players[0]
-      ? "#9OD5FF" // Player 1's turn
-      : "#CFFDBC" // Player 2's turn
-    : "#ffffff";
+  const numbers = ["aces", "twos", "threes", "fours", "fives", "sixes"];
+  const specials = ["threeKind","fourKind","fullHouse","shortStraight","longStraight","yahtzee","chance"];
 
   return (
-    <div style={{ padding: "2rem", minHeight: "100vh", backgroundColor }}>
-      <h2>Game: {gameId}</h2>
-
-      {gameState && (
-        <>
-          <p>Status: {gameState.status}</p>
-          {gameState.status !== "finished" && (
-            <p>
-              Current Turn: <strong>{currentPlayer?.name}</strong>
-            </p>
-          )}
-          {gameState.status === "finished" && (
-            <div style={{ fontSize: "1.5rem", color: "green", marginBottom: "1rem" }}>
-              🎉 Game Over! Winner:{" "}
-              {gameState.winners.length > 1
-                ? gameState.winners.join(" & ") + " (tie!)"
-                : gameState.winners[0]}
-            </div>
-          )}
-
-          <p>
-            Players:{" "}
-            {gameState.players.map((p) => (
-              <span
-                key={p.socketId}
-                style={{
-                  fontWeight: currentPlayer?.socketId === p.socketId ? "bold" : "normal",
-                  marginRight: "1rem",
-                }}
-              >
-                {p.name} ({p.total})
-              </span>
-            ))}
-          </p>
-
-          <div style={{ fontSize: "2rem" }}>
-            {dice.map((d, i) => (
-              <span
-                key={i}
-                style={{
-                  margin: "0 10px",
-                  cursor: isMyTurn ? "pointer" : "default",
-                  opacity: gameState.holds[i] ? 0.5 : 1,
-                }}
-                onClick={() => handleHold(i)}
-              >
-                🎲 {d}
-              </span>
-            ))}
-          </div>
-
-          <button onClick={handleRoll} disabled={!isMyTurn || gameState.rollsLeft <= 0}>
-            Roll Dice ({gameState.rollsLeft} left)
-          </button>
-
-          <h3>Scoreboard</h3>
-          <table border="1" cellPadding="5">
-            <thead>
-              <tr>
-                <th>Player</th>
-                {[
-                  "aces","twos","threes","fours","fives","sixes",
-                  "threeKind","fourKind","fullHouse","shortStraight",
-                  "longStraight","yahtzee","chance"
-                ].map((cat) => (
-                  <th key={cat}>{cat}</th>
-                ))}
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {gameState.players.map((p) => (
-                <tr key={p.socketId}>
-                  <td>{p.name}</td>
-                  {[
-                    "aces","twos","threes","fours","fives","sixes",
-                    "threeKind","fourKind","fullHouse","shortStraight",
-                    "longStraight","yahtzee","chance"
-                  ].map((cat) => (
-                    <td key={cat}>{p.scores?.[cat] ?? "-"}</td>
-                  ))}
-                  <td>{p.total}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <h3>Choose a Category</h3>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-            {[
-              "aces","twos","threes","fours","fives","sixes",
-              "threeKind","fourKind","fullHouse","shortStraight",
-              "longStraight","yahtzee","chance"
-            ].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => handleScore(cat)}
-                disabled={!isMyTurn || me?.scores?.[cat] !== undefined}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </>
+    <div style={{ padding: "2rem", minHeight: "100vh", backgroundColor: "#fefefe", fontFamily: "Arial, sans-serif" }}>
+      <h2 style={{ textAlign: "center", color: "#333" }}>Yahtzee Game: {gameId}</h2>
+      <p style={{ textAlign: "center", color: "#555" }}>Status: <strong>{gameState.status}</strong></p>
+      {gameState.status !== "finished" && (
+        <p style={{ textAlign: "center" }}>Current Turn: <strong>{currentPlayer?.name}</strong></p>
       )}
+      {gameState.status === "finished" && (
+        <div style={{ fontSize: "1.5rem", color: "green", textAlign: "center", margin: "1rem 0" }}>
+          🎉 Game Over! Winner:{" "}
+          {gameState.winners.length > 1
+            ? gameState.winners.join(" & ") + " (tie!)"
+            : gameState.winners[0]}
+        </div>
+      )}
+
+      {/* Dice */}
+      <div style={{ fontSize: "2rem", textAlign: "center", margin: "1rem 0" }}>
+        {dice.map((d, i) => (
+          <span
+            key={i}
+            style={{
+              margin: "0 10px",
+              cursor: isMyTurn ? "pointer" : "default",
+              opacity: gameState.holds[i] ? 0.5 : 1,
+              transition: "transform 0.2s",
+              display: "inline-block",
+              padding: "10px",
+              border: "2px solid #ddd",
+              borderRadius: "8px",
+              backgroundColor: "#f0f0f0",
+            }}
+            onClick={() => handleHold(i)}
+          >
+            🎲 {d}
+          </span>
+        ))}
+      </div>
+
+      <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+        <button
+          onClick={handleRoll}
+          disabled={!isMyTurn || gameState.rollsLeft <= 0}
+          style={{
+            padding: "10px 20px",
+            fontSize: "1rem",
+            borderRadius: "8px",
+            border: "none",
+            backgroundColor: isMyTurn ? "#4CAF50" : "#ccc",
+            color: "#fff",
+            cursor: isMyTurn ? "pointer" : "not-allowed",
+            transition: "background-color 0.3s"
+          }}
+        >
+          Roll Dice ({gameState.rollsLeft} left)
+        </button>
+      </div>
+
+      {/* Two-column Scoreboard */}
+      <div style={{ display: "flex", justifyContent: "center", gap: "3rem", marginTop: "2rem" }}>
+        {/* Column 1 */}
+        <div style={{ backgroundColor: "#f0f8ff", padding: "1rem", borderRadius: "10px", minWidth: "140px" }}>
+          <h3 style={{ textAlign: "center", color: "#333" }}>Numbers</h3>
+          {numbers.map((cat) => (
+            <div
+              key={cat}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "6px 10px",
+                margin: "4px 0",
+                borderRadius: "6px",
+                backgroundColor: me?.scores?.[cat] !== undefined ? "#d1ffd6" : "#fff",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                cursor: me?.scores?.[cat] === undefined && isMyTurn ? "pointer" : "default",
+                transition: "background-color 0.2s",
+              }}
+              onClick={() => isMyTurn && handleScore(cat)}
+            >
+              <span>{cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
+              <span>{me?.scores?.[cat] ?? "-"}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Column 2 */}
+        <div style={{ backgroundColor: "#fff0f5", padding: "1rem", borderRadius: "10px", minWidth: "160px" }}>
+          <h3 style={{ textAlign: "center", color: "#333" }}>Specials</h3>
+          {specials.map((cat) => (
+            <div
+              key={cat}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "6px 10px",
+                margin: "4px 0",
+                borderRadius: "6px",
+                backgroundColor: me?.scores?.[cat] !== undefined ? "#d1ffd6" : "#fff",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+                cursor: me?.scores?.[cat] === undefined && isMyTurn ? "pointer" : "default",
+                transition: "background-color 0.2s",
+              }}
+              onClick={() => isMyTurn && handleScore(cat)}
+            >
+              <span>{cat}</span>
+              <span>{me?.scores?.[cat] ?? "-"}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
-
