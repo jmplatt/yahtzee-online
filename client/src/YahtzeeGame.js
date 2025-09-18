@@ -72,13 +72,15 @@ const handleRoll = () => {
   if (!gameState) return;
   setRolling(true);
 
+  // animate rolling
   const animation = setInterval(() => {
-    setDice(dice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1)));
+    setDice(prevDice => prevDice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1)));
   }, 100);
 
   setTimeout(() => {
     clearInterval(animation);
-    // Reduce rollsLeft by 1 locally
+
+    // Decrease rolls left by 1
     setGameState(prev => ({ ...prev, rollsLeft: prev.rollsLeft - 1 }));
 
     socket.emit("roll-dice", { gameId }, (res) => {
