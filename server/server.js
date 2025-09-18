@@ -19,30 +19,13 @@ const io = new Server(httpServer);
 io.on('connection', (socket) => {
   console.log('A user connected');
 
-  // Example socket handler
+  // Example disconnect handler
   socket.on('disconnect', () => {
     console.log('A user disconnected');
   });
 });
 
-// Serve React build
-app.use(express.static(path.join(__dirname, '../client/build')));
-
-// Catch-all route to serve React for any other path
-app.get(/.*/, (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
-});
-
-// Start server
-const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-// Utility function
-function makeId(len = 6) {
-  return Math.random().toString(36).substr(2, len).toUpperCase();
-}
-
-
+// Game state
 const GAMES = new Map();
 const CATEGORIES = [
   'aces','twos','threes','fours','fives','sixes',
@@ -90,6 +73,10 @@ function computeScore(dice, category){
   }
 }
 
+function makeId(len = 6) {
+  return Math.random().toString(36).substr(2, len).toUpperCase();
+}
+
 function newGame(ownerName, ownerSocketId){
   const id = makeId(6);
   const state = {
@@ -107,8 +94,8 @@ function newGame(ownerName, ownerSocketId){
   return state;
 }
 
+// Socket.IO game events
 io.on('connection', socket => {
-  console.log('conn', socket.id);
 
   socket.on('create-game', ({name}, cb) => {
     const g = newGame(name||'Player 1', socket.id);
@@ -193,14 +180,17 @@ io.on('connection', socket => {
   socket.on('disconnect', () => {
     console.log('disconnect', socket.id);
   });
+
 });
 
-// Serve React build folder in production
+// Serve React build folder
 app.use(express.static(path.join(__dirname, "../client/build")));
 
+// Catch-all to serve React for any other path
 app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
 });
 
+// Start server (only once)
+const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
