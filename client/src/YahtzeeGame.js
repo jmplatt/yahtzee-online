@@ -22,8 +22,10 @@ const specialLabels = {
   chance: "?",
 };
 
-const CATEGORIES = ["aces","twos","threes","fours","fives","sixes",
-"threeKind","fourKind","fullHouse","shortStraight","longStraight","yahtzee","chance"];
+const CATEGORIES = [
+  "aces","twos","threes","fours","fives","sixes",
+  "threeKind","fourKind","fullHouse","shortStraight","longStraight","yahtzee","chance"
+];
 
 export default function YahtzeeGame() {
   const [gameId, setGameId] = useState("");
@@ -43,7 +45,6 @@ export default function YahtzeeGame() {
       setSelectedCategory(null);
       setHoverCategory(null);
     });
-
     return () => socket.off("game-updated");
   }, []);
 
@@ -72,7 +73,7 @@ export default function YahtzeeGame() {
     if (!gameState) return;
     setRolling(true);
     const animation = setInterval(() => {
-      setDice(dice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1)));
+      setDice(prevDice => prevDice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1)));
     }, 100);
     setTimeout(() => {
       clearInterval(animation);
@@ -98,10 +99,10 @@ export default function YahtzeeGame() {
 
   const computeScore = (dice, category) => {
     const counts = Array(7).fill(0);
-    dice.forEach((d) => counts[d]++);
+    dice.forEach(d => counts[d]++);
     const total = dice.reduce((a, b) => a + b, 0);
 
-    switch (category) {
+    switch(category){
       case "aces": return counts[1]*1;
       case "twos": return counts[2]*2;
       case "threes": return counts[3]*3;
@@ -125,9 +126,9 @@ export default function YahtzeeGame() {
     }
   };
 
-  if (!joined) {
+  if(!joined){
     return (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
+      <div style={{ padding:"2rem", textAlign:"center" }}>
         <h2>Join or Create a Game</h2>
         <input placeholder="Your name" value={name} onChange={(e)=>setName(e.target.value)} />
         <button onClick={handleCreate}>Create Game</button>
@@ -142,7 +143,7 @@ export default function YahtzeeGame() {
   const me = gameState?.players.find(p=>p.socketId===socket.id);
   const isMyTurn = currentPlayer?.socketId === socket.id;
 
-  const diceStyle = (d, i) => ({
+  const diceStyle = (d,i) => ({
     width:"50px",
     height:"50px",
     lineHeight:"50px",
@@ -155,25 +156,6 @@ export default function YahtzeeGame() {
     transition:"all 0.2s",
     userSelect:"none"
   });
-
-  const columnStyle = {
-    backgroundColor:"#90D5FF",
-    padding:"10px",
-    margin:"5px",
-    borderRadius:"8px",
-    width:"180px"
-  };
-
-  const scoreBoxStyle = {
-    display:"inline-block",
-    width:"30px",
-    height:"25px",
-    lineHeight:"25px",
-    marginLeft:"5px",
-    backgroundColor:"#D1FFBD",
-    borderRadius:"5px",
-    textAlign:"center",
-  };
 
   return (
     <div style={{ padding:"2rem", minHeight:"100vh", backgroundColor:"#D1FFBD" }}>
@@ -199,25 +181,55 @@ export default function YahtzeeGame() {
         </button>
       </div>
 
-      {/* Scoreboard */}
-      <div style={{ display:"flex", justifyContent:"center", gap:"20px", marginTop:"2rem" }}>
-        <div style={columnStyle}>
-          <h3 style={{ textAlign:"center" }}>Category</h3>
-          {CATEGORIES.map(cat=>(
-            <div key={cat} style={{ display:"flex", justifyContent:"space-between", marginBottom:"6px", alignItems:"center" }}>
-              <span>{numberLabels[cat] ?? specialLabels[cat]}</span>
-              <div style={{ display:"flex", gap:"5px" }}>
-                {gameState.players.map(p=>(
-                  <span key={p.socketId} style={scoreBoxStyle} title={p.name}>
-                    {p.scores?.[cat] ?? "-"}
-                  </span>
-                ))}
-              </div>
-              <button onClick={()=>setSelectedCategory(cat)}
-                disabled={!isMyTurn || me?.scores?.[cat]!==undefined}>Select</button>
-            </div>
-          ))}
-        </div>
+      {/* Table-style scoreboard */}
+      <div style={{ overflowX:"auto", marginTop:"2rem" }}>
+        <table style={{ borderCollapse:"collapse", width:"100%", maxWidth:"600px", margin:"0 auto" }}>
+          <thead>
+            <tr>
+              <th style={{ border:"1px solid #888", padding:"5px", backgroundColor:"#90D5FF" }}>Category</th>
+              {gameState.players.map(p=>(
+                <th key={p.socketId} style={{ border:"1px solid #888", padding:"5px", backgroundColor:"#90D5FF" }}>{p.name}</th>
+              ))}
+              <th style={{ border:"1px solid #888", padding:"5px", backgroundColor:"#90D5FF" }}>Select</th>
+            </tr>
+          </thead>
+          <tbody>
+            {CATEGORIES.map(cat=>(
+              <tr key={cat}>
+                <td style={{ border:"1px solid #888", padding:"5px", backgroundColor:"#D1FFBD" }}>
+                  {numberLabels[cat] ?? specialLabels[cat]}
+                </td>
+                {gameState.players.map(p=>{
+                  const isHover = hoverCategory === cat;
+                  return (
+                    <td
+                      key={p.socketId}
+                      style={{
+                        border:"1px solid #888",
+                        padding:"5px",
+                        textAlign:"center",
+                        backgroundColor:isHover?"#FFF59D":"#D1FFBD",
+                        fontWeight:isHover?"bold":"normal",
+                        transition:"all 0.2s"
+                      }}
+                      onMouseEnter={()=>setHoverCategory(cat)}
+                      onMouseLeave={()=>setHoverCategory(null)}
+                      title={p.name}
+                    >
+                      {p.scores?.[cat] ?? (isHover ? computeScore(dice,cat) : "-")}
+                    </td>
+                  )
+                })}
+                <td style={{ border:"1px solid #888", padding:"5px", textAlign:"center" }}>
+                  <button onClick={()=>setSelectedCategory(cat)}
+                    disabled={!isMyTurn || me?.scores?.[cat]!==undefined}>
+                    Select
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <div style={{ textAlign:"center", marginTop:"20px" }}>
