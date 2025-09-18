@@ -9,28 +9,20 @@ import { Server } from 'socket.io';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Create Express app and HTTP server
+// Express + HTTP + Socket.IO
 const app = express();
 const httpServer = createServer(app);
-
-// Attach Socket.IO
 const io = new Server(httpServer);
 
-io.on('connection', (socket) => {
-  console.log('A user connected');
-
-  // Example disconnect handler
-  socket.on('disconnect', () => {
-    console.log('A user disconnected');
-  });
-});
-
-// Game state
-const GAMES = new Map();
+// Utils
 const CATEGORIES = [
   'aces','twos','threes','fours','fives','sixes',
   'threeKind','fourKind','fullHouse','shortStraight','longStraight','yahtzee','chance'
 ];
+
+function makeId(len = 6) {
+  return Math.random().toString(36).substr(2, len).toUpperCase();
+}
 
 function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
 
@@ -73,10 +65,10 @@ function computeScore(dice, category){
   }
 }
 
-function makeId(len = 6) {
-  return Math.random().toString(36).substr(2, len).toUpperCase();
-}
+// Games storage
+const GAMES = new Map();
 
+// Create new game
 function newGame(ownerName, ownerSocketId){
   const id = makeId(6);
   const state = {
@@ -84,7 +76,7 @@ function newGame(ownerName, ownerSocketId){
     players: [
       { socketId: ownerSocketId, name: ownerName, scores: {}, total: 0 }
     ],
-    dice: [1,1,1,1,1],
+    dice: Array.from({length:5}, ()=>Math.floor(Math.random()*6)+1),
     holds: [false,false,false,false,false],
     rollsLeft: 3,
     currentPlayerIndex: 0,
@@ -94,8 +86,9 @@ function newGame(ownerName, ownerSocketId){
   return state;
 }
 
-// Socket.IO game events
+// Socket.IO handlers
 io.on('connection', socket => {
+  console.log('conn', socket.id);
 
   socket.on('create-game', ({name}, cb) => {
     const g = newGame(name||'Player 1', socket.id);
@@ -152,20 +145,20 @@ io.on('connection', socket => {
 
     const pts = computeScore(g.dice, category);
     player.scores[category] = pts;
-    player.total = Object.values(player.scores).reduce((a,b)=>a+(b||0), 0);
+    player.total = Object.values(player.scores).reduce((a,b)=>a+(b||0),0);
 
-    // reset dice/holds/rolls and switch player
-    g.dice = [1,1,1,1,1];
+    // Reset dice, holds, rolls for next player
+    g.dice = Array.from({length:5}, ()=>Math.floor(Math.random()*6)+1);
     g.holds = [false,false,false,false,false];
     g.rollsLeft = 3;
     g.currentPlayerIndex = (g.currentPlayerIndex + 1) % g.players.length;
 
-    // check finish
+    // Check for finished game
     const bothDone = g.players.every(p => CATEGORIES.every(cat => p.scores[cat] !== undefined));
-    if(bothDone) {
+    if(bothDone){
       g.status = 'finished';
-      const maxScore = Math.max(...g.players.map(p => p.total));
-      g.winners = g.players.filter(p => p.total === maxScore).map(p => p.name);
+      const maxScore = Math.max(...g.players.map(p=>p.total));
+      g.winners = g.players.filter(p=>p.total===maxScore).map(p=>p.name);
     }
 
     io.to('game_' + g.id).emit('game-updated', g);
@@ -180,17 +173,14 @@ io.on('connection', socket => {
   socket.on('disconnect', () => {
     console.log('disconnect', socket.id);
   });
-
 });
 
-// Serve React build folder
+// Serve React build
 app.use(express.static(path.join(__dirname, "../client/build")));
-
-// Catch-all to serve React for any other path
 app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
 });
 
-// Start server (only once)
+// Start server
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
