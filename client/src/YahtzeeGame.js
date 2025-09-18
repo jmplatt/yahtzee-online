@@ -34,13 +34,11 @@ export default function YahtzeeGame() {
   const [rolling, setRolling] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [hoverCategory, setHoverCategory] = useState(null);
-  const [localHolds, setLocalHolds] = useState([false, false, false, false, false]);
 
   useEffect(() => {
     socket.on("game-updated", (state) => {
       setGameState(state);
       setDice(state.dice);
-      setLocalHolds(state.holds || [false, false, false, false, false]);
       setRolling(false);
       setSelectedCategory(null);
       setHoverCategory(null);
@@ -55,7 +53,6 @@ export default function YahtzeeGame() {
         setGameId(res.gameId);
         setGameState(res.state);
         setJoined(true);
-        setLocalHolds(res.state.holds || [false, false, false, false, false]);
       }
     });
   };
@@ -65,7 +62,6 @@ export default function YahtzeeGame() {
       if (res.ok) {
         setGameState(res.state);
         setJoined(true);
-        setLocalHolds(res.state.holds || [false, false, false, false, false]);
       } else {
         alert(res.error);
       }
@@ -75,23 +71,14 @@ export default function YahtzeeGame() {
   const handleRoll = () => {
     if (!gameState) return;
     setRolling(true);
-
     const animation = setInterval(() => {
-      setDice(prevDice =>
-        prevDice.map((d, i) => (localHolds[i] ? d : Math.floor(Math.random() * 6) + 1))
-      );
+      setDice(dice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1)));
     }, 100);
-
     setTimeout(() => {
       clearInterval(animation);
-
-      // Reduce rolls left by 1 safely
-      setGameState(prev => ({ ...prev, rollsLeft: prev.rollsLeft - 1 }));
-
       socket.emit("roll-dice", { gameId }, (res) => {
         if (!res.ok) alert(res.error || "Roll failed");
       });
-
       setRolling(false);
     }, 1000);
   };
@@ -99,13 +86,6 @@ export default function YahtzeeGame() {
   const handleHold = (index) => {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     if (currentPlayer?.socketId !== socket.id) return;
-
-    setLocalHolds(prev => {
-      const newHolds = [...prev];
-      newHolds[index] = !newHolds[index];
-      return newHolds;
-    });
-
     socket.emit("toggle-hold", { gameId, index });
   };
 
@@ -168,7 +148,7 @@ export default function YahtzeeGame() {
     lineHeight:"50px",
     margin:"0 5px",
     fontSize:"1.5rem",
-    backgroundColor: localHolds[i] ? "#D1FFBD" : "#90D5FF",
+    backgroundColor:gameState.holds[i]?"#D1FFBD":"#90D5FF",
     borderRadius:"8px",
     display:"inline-block",
     cursor:isMyTurn?"pointer":"default",
@@ -223,39 +203,18 @@ export default function YahtzeeGame() {
       <div style={{ display:"flex", justifyContent:"center", gap:"20px", marginTop:"2rem" }}>
         <div style={columnStyle}>
           <h3 style={{ textAlign:"center" }}>Category</h3>
-          {CATEGORIES.map(cat => (
-            <div 
-              key={cat} 
-              style={{ display:"flex", justifyContent:"space-between", marginBottom:"6px", alignItems:"center" }}
-            >
+          {CATEGORIES.map(cat=>(
+            <div key={cat} style={{ display:"flex", justifyContent:"space-between", marginBottom:"6px", alignItems:"center" }}>
               <span>{numberLabels[cat] ?? specialLabels[cat]}</span>
               <div style={{ display:"flex", gap:"5px" }}>
-                {gameState.players.map(p => {
-                  const isHover = hoverCategory === cat;
-                  return (
-                    <span
-                      key={p.socketId}
-                      style={{
-                        ...scoreBoxStyle,
-                        backgroundColor: isHover ? "#FFF59D" : "#D1FFBD",
-                        fontWeight: isHover ? "bold" : "normal",
-                        transition: "all 0.2s"
-                      }}
-                      title={p.name}
-                      onMouseEnter={() => setHoverCategory(cat)}
-                      onMouseLeave={() => setHoverCategory(null)}
-                    >
-                      {p.scores?.[cat] ?? (isHover ? computeScore(dice, cat) : "-")}
-                    </span>
-                  );
-                })}
+                {gameState.players.map(p=>(
+                  <span key={p.socketId} style={scoreBoxStyle} title={p.name}>
+                    {p.scores?.[cat] ?? "-"}
+                  </span>
+                ))}
               </div>
-              <button 
-                onClick={() => setSelectedCategory(cat)}
-                disabled={!isMyTurn || me?.scores?.[cat] !== undefined}
-              >
-                Select
-              </button>
+              <button onClick={()=>setSelectedCategory(cat)}
+                disabled={!isMyTurn || me?.scores?.[cat]!==undefined}>Select</button>
             </div>
           ))}
         </div>
@@ -270,5 +229,6 @@ export default function YahtzeeGame() {
     </div>
   );
 }
+
 
 
