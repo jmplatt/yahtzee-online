@@ -68,19 +68,24 @@ export default function YahtzeeGame() {
     });
   };
 
-  const handleRoll = () => {
-    if (!gameState) return;
-    setRolling(true);
-    const animation = setInterval(() => {
-      setDice(dice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1)));
-    }, 100);
-    setTimeout(() => {
-      clearInterval(animation);
-      socket.emit("roll-dice", { gameId }, (res) => {
-        if (!res.ok) alert(res.error || "Roll failed");
-      });
-    }, 1000);
-  };
+const handleRoll = () => {
+  if (!gameState) return;
+  setRolling(true);
+
+  const animation = setInterval(() => {
+    setDice(dice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1)));
+  }, 100);
+
+  setTimeout(() => {
+    clearInterval(animation);
+    // Reduce rollsLeft by 1 locally
+    setGameState(prev => ({ ...prev, rollsLeft: prev.rollsLeft - 1 }));
+
+    socket.emit("roll-dice", { gameId }, (res) => {
+      if (!res.ok) alert(res.error || "Roll failed");
+    });
+  }, 1000);
+};
 
   const handleHold = (index) => {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
