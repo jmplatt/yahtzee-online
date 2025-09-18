@@ -34,11 +34,13 @@ export default function YahtzeeGame() {
   const [rolling, setRolling] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [hoverCategory, setHoverCategory] = useState(null);
+  const [localHolds, setLocalHolds] = useState([false, false, false, false, false]);
 
   useEffect(() => {
     socket.on("game-updated", (state) => {
       setGameState(state);
       setDice(state.dice);
+      setLocalHolds(state.holds || [false, false, false, false, false]);
       setRolling(false);
       setSelectedCategory(null);
       setHoverCategory(null);
@@ -53,6 +55,7 @@ export default function YahtzeeGame() {
         setGameId(res.gameId);
         setGameState(res.state);
         setJoined(true);
+        setLocalHolds(res.state.holds || [false, false, false, false, false]);
       }
     });
   };
@@ -62,6 +65,7 @@ export default function YahtzeeGame() {
       if (res.ok) {
         setGameState(res.state);
         setJoined(true);
+        setLocalHolds(res.state.holds || [false, false, false, false, false]);
       } else {
         alert(res.error);
       }
@@ -74,7 +78,7 @@ export default function YahtzeeGame() {
 
     const animation = setInterval(() => {
       setDice(prevDice =>
-        prevDice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1))
+        prevDice.map((d, i) => (localHolds[i] ? d : Math.floor(Math.random() * 6) + 1))
       );
     }, 100);
 
@@ -95,6 +99,12 @@ export default function YahtzeeGame() {
   const handleHold = (index) => {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     if (currentPlayer?.socketId !== socket.id) return;
+
+    setLocalHolds(prev => {
+      const newHolds = [...prev];
+      newHolds[index] = !newHolds[index];
+      return newHolds;
+    });
 
     socket.emit("toggle-hold", { gameId, index });
   };
@@ -158,7 +168,7 @@ export default function YahtzeeGame() {
     lineHeight:"50px",
     margin:"0 5px",
     fontSize:"1.5rem",
-    backgroundColor:gameState.holds[i]?"#D1FFBD":"#90D5FF",
+    backgroundColor: localHolds[i] ? "#D1FFBD" : "#90D5FF",
     borderRadius:"8px",
     display:"inline-block",
     cursor:isMyTurn?"pointer":"default",
@@ -260,4 +270,5 @@ export default function YahtzeeGame() {
     </div>
   );
 }
+
 
