@@ -3,7 +3,10 @@ import { io } from "socket.io-client";
 import YahtzeeGame from "./YahtzeeGame";
 
 // connect to backend server (port 3001)
-const socket = io("http://localhost:3001");
+const socket = io("https://yahtzee-online.onrender.com", {
+  transports: ["websocket"],
+});
+
 
 function App() {
   const [status, setStatus] = useState("Connecting...");
