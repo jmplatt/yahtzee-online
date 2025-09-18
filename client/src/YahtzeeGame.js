@@ -27,7 +27,7 @@ export default function YahtzeeGame() {
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
   const [gameState, setGameState] = useState(null);
-  const [dice, setDice] = useState([1, 1, 1, 1, 1]);
+  const [dice, setDice] = useState(() => Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1));
   const [rolling, setRolling] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [hoverCategory, setHoverCategory] = useState(null);
