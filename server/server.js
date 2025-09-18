@@ -169,8 +169,8 @@ io.on('connection', socket => {
 // Serve React build folder in production
 app.use(express.static(path.join(__dirname, "../client/build")));
 
-app.get("/*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../client/build", "index.html"));
+app.get('/:catchAll(*)', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/build', 'index.html'));
 });
 
 server.listen(PORT, ()=> console.log('Server up', PORT));
