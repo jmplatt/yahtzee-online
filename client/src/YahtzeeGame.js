@@ -27,12 +27,10 @@ export default function YahtzeeGame() {
   const [name, setName] = useState("");
   const [joined, setJoined] = useState(false);
   const [gameState, setGameState] = useState(null);
-  const [dice, setDice] = useState(() =>
-    Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1)
-  );
+  const [dice, setDice] = useState(Array.from({ length: 5 }, () => Math.floor(Math.random() * 6) + 1));
   const [rolling, setRolling] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [hovered, setHovered] = useState(null);
+  const [hoverCategory, setHoverCategory] = useState(null);
 
   useEffect(() => {
     socket.on("game-updated", (state) => {
@@ -40,7 +38,7 @@ export default function YahtzeeGame() {
       setDice(state.dice);
       setRolling(false);
       setSelectedCategory(null);
-      setHovered(null);
+      setHoverCategory(null);
     });
 
     return () => socket.off("game-updated");
@@ -71,7 +69,7 @@ export default function YahtzeeGame() {
     if (!gameState) return;
     setRolling(true);
     const animation = setInterval(() => {
-      setDice(dice.map(() => Math.floor(Math.random() * 6) + 1));
+      setDice(dice.map((d, i) => (gameState.holds[i] ? d : Math.floor(Math.random() * 6) + 1)));
     }, 100);
     setTimeout(() => {
       clearInterval(animation);
@@ -82,72 +80,79 @@ export default function YahtzeeGame() {
   };
 
   const handleHold = (index) => {
-    if (gameState.players[gameState.currentPlayerIndex]?.socketId !== socket.id)
-      return;
+    if (gameState.players[gameState.currentPlayerIndex]?.socketId !== socket.id) return;
     socket.emit("toggle-hold", { gameId, index });
   };
 
   const handleSubmitScore = () => {
     if (!selectedCategory) return;
-    socket.emit(
-      "choose-score",
-      { gameId, category: selectedCategory },
-      (res) => {
-        if (!res.ok) alert(res.error || "Score failed");
-      }
-    );
+    socket.emit("choose-score", { gameId, category: selectedCategory }, (res) => {
+      if (!res.ok) alert(res.error || "Score failed");
+    });
   };
 
-  function calculatePotential(dice, category) {
-    if (!dice || dice.length === 0) return 0;
-
-    const counts = Array(6).fill(0);
-    dice.forEach((d) => counts[d - 1]++);
+  const computeScore = (dice, category) => {
+    const counts = Array(7).fill(0);
+    dice.forEach((d) => counts[d]++);
     const total = dice.reduce((a, b) => a + b, 0);
 
     switch (category) {
-      case "aces": return counts[0] * 1;
-      case "twos": return counts[1] * 2;
-      case "threes": return counts[2] * 3;
-      case "fours": return counts[3] * 4;
-      case "fives": return counts[4] * 5;
-      case "sixes": return counts[5] * 6;
-      case "threeKind": return Math.max(...counts) >= 3 ? total : 0;
-      case "fourKind": return Math.max(...counts) >= 4 ? total : 0;
-      case "fullHouse": return counts.includes(3) && counts.includes(2) ? 25 : 0;
-      case "shortStraight":
-        return [[1,2,3,4],[2,3,4,5],[3,4,5,6]].some(seq => seq.every(n => counts[n-1]>0)) ? 30 : 0;
-      case "longStraight":
-        return [1,2,3,4,5].every(n => counts[n-1]>0) || [2,3,4,5,6].every(n => counts[n-1]>0) ? 40 : 0;
-      case "yahtzee": return counts.includes(5) ? 50 : 0;
-      case "chance": return total;
-      default: return 0;
+      case "aces":
+        return counts[1] * 1;
+      case "twos":
+        return counts[2] * 2;
+      case "threes":
+        return counts[3] * 3;
+      case "fours":
+        return counts[4] * 4;
+      case "fives":
+        return counts[5] * 5;
+      case "sixes":
+        return counts[6] * 6;
+      case "threeKind":
+        return Object.values(counts).some((c) => c >= 3) ? total : 0;
+      case "fourKind":
+        return Object.values(counts).some((c) => c >= 4) ? total : 0;
+      case "fullHouse":
+        return Object.values(counts).some((c) => c === 3) && Object.values(counts).some((c) => c === 2)
+          ? 25
+          : 0;
+      case "shortStraight": {
+        const set = new Set(dice);
+        return [[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]].some((seq) => seq.every((n) => set.has(n))) ? 30 : 0;
+      }
+      case "longStraight": {
+        const set = new Set(dice);
+        return [1, 2, 3, 4, 5].every((n) => set.has(n)) || [2, 3, 4, 5, 6].every((n) => set.has(n)) ? 40 : 0;
+      }
+      case "yahtzee":
+        return Object.values(counts).some((c) => c === 5) ? 50 : 0;
+      case "chance":
+        return total;
+      default:
+        return 0;
     }
-  }
-
-  function calculateTotal(player) {
-    if (!player || !player.scores) return 0;
-    return Object.values(player.scores).reduce((a,b)=>a+(b||0),0);
-  }
+  };
 
   if (!joined) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
         <h2>Join or Create a Game</h2>
-        <input placeholder="Your name" value={name} onChange={e=>setName(e.target.value)} />
+        <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
         <button onClick={handleCreate}>Create Game</button>
-        <br /><br />
-        <input placeholder="Game ID" value={gameId} onChange={e=>setGameId(e.target.value)} />
+        <br />
+        <br />
+        <input placeholder="Game ID" value={gameId} onChange={(e) => setGameId(e.target.value)} />
         <button onClick={handleJoin}>Join Game</button>
       </div>
     );
   }
 
   const currentPlayer = gameState?.players[gameState.currentPlayerIndex];
-  const me = gameState?.players.find(p => p.socketId === socket.id);
+  const me = gameState?.players.find((p) => p.socketId === socket.id);
   const isMyTurn = currentPlayer?.socketId === socket.id;
 
-  const diceStyle = (d,i) => ({
+  const diceStyle = (d, i) => ({
     width: "50px",
     height: "50px",
     lineHeight: "50px",
@@ -166,19 +171,19 @@ export default function YahtzeeGame() {
     padding: "10px",
     margin: "5px",
     borderRadius: "8px",
-    width: "180px",
+    width: "150px",
   };
 
-  const scoreBoxStyle = (highlight=false) => ({
+  const scoreBoxStyle = {
     display: "inline-block",
     width: "40px",
     height: "25px",
     lineHeight: "25px",
     marginLeft: "5px",
-    backgroundColor: highlight ? "yellow" : "#D1FFBD",
+    backgroundColor: "#D1FFBD",
     borderRadius: "5px",
     textAlign: "center",
-  });
+  };
 
   return (
     <div style={{ padding: "2rem", minHeight: "100vh", backgroundColor: "#D1FFBD" }}>
@@ -186,78 +191,79 @@ export default function YahtzeeGame() {
       <p>Status: {gameState.status}</p>
       {gameState.status !== "finished" && <p>Current Turn: <strong>{currentPlayer?.name}</strong></p>}
       {gameState.status === "finished" && (
-        <div style={{ fontSize:"1.5rem", color:"green", marginBottom:"1rem", textAlign:"center" }}>
+        <div style={{ fontSize: "1.5rem", color: "green", marginBottom: "1rem", textAlign: "center" }}>
           🎉 Game Over! Winner: {gameState.winners.join(" & ")}
         </div>
       )}
 
-      <div style={{ textAlign:"center", marginBottom:"1rem" }}>
-        {dice.map((d,i)=>(
-          <span key={i} style={diceStyle(d,i)} onClick={()=>handleHold(i)}>🎲 {d}</span>
+      <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+        {dice.map((d, i) => (
+          <span key={i} style={diceStyle(d, i)} onClick={() => handleHold(i)}>🎲 {d}</span>
         ))}
       </div>
 
-      <div style={{ textAlign:"center", marginBottom:"1rem" }}>
-        <button onClick={handleRoll} disabled={!isMyTurn || gameState.rollsLeft<=0 || rolling}>
+      <div style={{ textAlign: "center", marginBottom: "1rem" }}>
+        <button onClick={handleRoll} disabled={!isMyTurn || gameState.rollsLeft <= 0 || rolling}>
           {rolling ? "Rolling..." : `Roll Dice (${gameState.rollsLeft} left)`}
         </button>
       </div>
 
-      <div style={{ display:"flex", justifyContent:"center", gap:"20px", marginTop:"2rem" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: "20px", marginTop: "2rem" }}>
         {/* Numbers column */}
         <div style={columnStyle}>
-          <h3 style={{ textAlign:"center" }}>Numbers</h3>
-          {["aces","twos","threes","fours","fives","sixes"].map(cat=>{
-            const potential = calculatePotential(dice, cat);
+          <h3 style={{ textAlign: "center" }}>Numbers</h3>
+          {["aces","twos","threes","fours","fives","sixes"].map((cat) => {
+            const potential = computeScore(dice, cat);
             return (
-              <div key={cat} style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px", alignItems:"center" }}
-                   onMouseEnter={()=>setHovered(cat)}
-                   onMouseLeave={()=>setHovered(null)}
+              <div
+                key={cat}
+                style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", alignItems: "center" }}
+                onMouseEnter={() => setHoverCategory(cat)}
+                onMouseLeave={() => setHoverCategory(null)}
               >
                 <span>{numberLabels[cat]}</span>
-                <span style={scoreBoxStyle(hovered===cat)}>{me?.scores?.[cat] ?? (hovered===cat ? potential : "-")}</span>
-                <button onClick={()=>setSelectedCategory(cat)} disabled={!isMyTurn || me?.scores?.[cat]!==undefined}>Select</button>
+                <span style={scoreBoxStyle}>
+                  {me?.scores?.[cat] ?? (hoverCategory === cat ? potential : "-")}
+                </span>
+                <button onClick={() => setSelectedCategory(cat)} disabled={!isMyTurn || me?.scores?.[cat] !== undefined}>
+                  Select
+                </button>
               </div>
-            )
+            );
           })}
         </div>
 
         {/* Specials column */}
         <div style={columnStyle}>
-          <h3 style={{ textAlign:"center" }}>Specials</h3>
-          {["threeKind","fourKind","fullHouse","shortStraight","longStraight","yahtzee","chance"].map(cat=>{
-            const potential = calculatePotential(dice, cat);
+          <h3 style={{ textAlign: "center" }}>Specials</h3>
+          {["threeKind","fourKind","fullHouse","shortStraight","longStraight","yahtzee","chance"].map((cat) => {
+            const potential = computeScore(dice, cat);
             return (
-              <div key={cat} style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px", alignItems:"center" }}
-                   onMouseEnter={()=>setHovered(cat)}
-                   onMouseLeave={()=>setHovered(null)}
+              <div
+                key={cat}
+                style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px", alignItems: "center" }}
+                onMouseEnter={() => setHoverCategory(cat)}
+                onMouseLeave={() => setHoverCategory(null)}
               >
                 <span>{specialLabels[cat]}</span>
-                <span style={scoreBoxStyle(hovered===cat)}>{me?.scores?.[cat] ?? (hovered===cat ? potential : "-")}</span>
-                <button onClick={()=>setSelectedCategory(cat)} disabled={!isMyTurn || me?.scores?.[cat]!==undefined}>Select</button>
+                <span style={scoreBoxStyle}>
+                  {me?.scores?.[cat] ?? (hoverCategory === cat ? potential : "-")}
+                </span>
+                <button onClick={() => setSelectedCategory(cat)} disabled={!isMyTurn || me?.scores?.[cat] !== undefined}>
+                  Select
+                </button>
               </div>
-            )
+            );
           })}
         </div>
       </div>
 
-      {/* Submit Button */}
-      <div style={{ textAlign:"center", marginTop:"20px" }}>
-        <button onClick={handleSubmitScore} disabled={!selectedCategory || !isMyTurn} style={{padding:"10px 20px", fontSize:"1rem"}}>
+      <div style={{ textAlign: "center", marginTop: "20px" }}>
+        <button onClick={handleSubmitScore} disabled={!selectedCategory || !isMyTurn} style={{ padding: "10px 20px", fontSize: "1rem" }}>
           Submit Choice
         </button>
       </div>
-
-      {/* Running Total */}
-      <div style={{ textAlign:"center", marginTop:"30px", fontSize:"1.2rem" }}>
-        <h3>Running Totals</h3>
-        {gameState.players.map(p=>(
-          <div key={p.socketId} style={{marginBottom:"5px"}}>
-            {p.name}: {calculateTotal(p)}
-          </div>
-        ))}
-      </div>
     </div>
-  )
+  );
 }
 
