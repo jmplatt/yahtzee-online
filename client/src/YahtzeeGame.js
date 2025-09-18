@@ -9,7 +9,6 @@ export default function YahtzeeGame() {
   const [joined, setJoined] = useState(false);
   const [gameState, setGameState] = useState(null);
   const [dice, setDice] = useState([]);
-  const [hoverScore, setHoverScore] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
 
   const numbers = ["aces","twos","threes","fours","fives","sixes"];
@@ -19,7 +18,7 @@ export default function YahtzeeGame() {
     socket.on("game-updated", (state) => {
       setGameState(state);
       setDice(state.dice);
-      setSelectedCategory(null); // reset selection after update
+      setSelectedCategory(null);
     });
 
     return () => {
@@ -93,9 +92,8 @@ export default function YahtzeeGame() {
   const me = gameState?.players.find((p) => p.socketId === socket.id);
   const isMyTurn = currentPlayer?.socketId === socket.id;
 
-  const computeHoverScore = (category) => {
+  const computeScorePreview = (category) => {
     if (!dice) return 0;
-    // replicate your scoring logic
     const counts = Array(7).fill(0);
     dice.forEach(d => counts[d]++);
     const total = dice.reduce((a,b)=>a+b,0);
@@ -125,25 +123,36 @@ export default function YahtzeeGame() {
     }
   };
 
-  const renderCategoryButton = (cat) => (
-    <div
-      key={cat}
-      style={{
-        padding: "8px",
-        margin: "5px 0",
-        cursor: isMyTurn && me?.scores?.[cat] === undefined ? "pointer" : "not-allowed",
-        backgroundColor: selectedCategory===cat ? "#ffeb99" : "#ffffff",
-        borderRadius: "5px",
-        border: "1px solid #333",
-        position: "relative"
-      }}
-      onClick={() => isMyTurn && me?.scores?.[cat] === undefined && setSelectedCategory(cat)}
-      onMouseEnter={() => setHoverScore(computeHoverScore(cat))}
-      onMouseLeave={() => setHoverScore(null)}
-    >
-      {cat} {hoverScore && selectedCategory !== cat && me?.scores?.[cat]===undefined ? `(${computeHoverScore(cat)})` : ""}
-    </div>
-  );
+  const renderCategoryButton = (cat) => {
+    const score = me?.scores?.[cat] ?? (selectedCategory===cat ? computeScorePreview(cat) : null);
+
+    return (
+      <div
+        key={cat}
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "8px",
+          margin: "5px 0",
+          cursor: isMyTurn && me?.scores?.[cat] === undefined ? "pointer" : "not-allowed",
+          backgroundColor: selectedCategory===cat ? "#ffeb99" : "#ffffff",
+          borderRadius: "5px",
+          border: "1px solid #333",
+        }}
+        onClick={() => isMyTurn && me?.scores?.[cat] === undefined && setSelectedCategory(cat)}
+      >
+        <span>{cat}</span>
+        <span style={{
+          minWidth: "35px",
+          textAlign: "center",
+          fontWeight: "bold",
+          backgroundColor: "#D1FFBD",
+          borderRadius: "5px",
+        }}>{score ?? "-"}</span>
+      </div>
+    );
+  };
 
   return (
     <div style={{ padding: "2rem", minHeight: "100vh", backgroundColor: "#D1FFBD" }}>
@@ -181,7 +190,6 @@ export default function YahtzeeGame() {
                   border: "2px solid #333",
                   cursor: isMyTurn ? "pointer" : "default",
                   transition: "all 0.3s",
-                  transform: "rotate(0deg)",
                 }}
                 onClick={() => handleHold(i)}
               >
@@ -196,12 +204,12 @@ export default function YahtzeeGame() {
 
           <div style={{ display: "flex", justifyContent: "center", gap: "2rem", marginTop: "2rem" }}>
             {/* Numbers Column */}
-            <div style={{ backgroundColor: "#90D5FF", padding: "1rem", borderRadius: "10px", minWidth: "140px" }}>
+            <div style={{ backgroundColor: "#90D5FF", padding: "1rem", borderRadius: "10px", minWidth: "160px" }}>
               <h3 style={{ textAlign: "center" }}>Numbers</h3>
               {numbers.map(renderCategoryButton)}
             </div>
             {/* Specials Column */}
-            <div style={{ backgroundColor: "#D1FFBD", padding: "1rem", borderRadius: "10px", minWidth: "160px" }}>
+            <div style={{ backgroundColor: "#90D5FF", padding: "1rem", borderRadius: "10px", minWidth: "180px" }}>
               <h3 style={{ textAlign: "center" }}>Specials</h3>
               {specials.map(renderCategoryButton)}
             </div>
@@ -217,7 +225,7 @@ export default function YahtzeeGame() {
             </button>
           </div>
 
-          <h3>Score Tally</h3>
+          <h3>Player Totals</h3>
           <div style={{ display: "flex", justifyContent: "center", gap: "2rem", flexWrap: "wrap" }}>
             {gameState.players.map(p => (
               <div key={p.socketId} style={{ padding: "1rem", border: "2px solid #333", borderRadius: "10px", minWidth: "120px", backgroundColor: "#ffffff" }}>
